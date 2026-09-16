@@ -1,12 +1,17 @@
 namespace AuriaAPI.Application.DTOs;
 
+public record ItemUtilizadoDto(int ItemEstoqueId, int QuantidadeUtilizada);
+
 public record CriarOrdemServicoDto(
     int ChamadoId,
     int TecnicoId,
     int TempoGastoMinutos,
     string? ParecerTecnico,
-    decimal CustoMaoObra
+    decimal CustoMaoObra,
+    IReadOnlyList<ItemUtilizadoDto>? ItensUtilizados
 );
+
+public record ItemUtilizadoResponseDto(int ItemEstoqueId, string? ItemNome, int QuantidadeUtilizada);
 
 public record OrdemServicoResponseDto(
     int Id,
@@ -18,5 +23,6 @@ public record OrdemServicoResponseDto(
     decimal CustoMaoObra,
     DateTime DataInicio,
     DateTime? DataConclusao,
-    string? StatusChamado
+    string? StatusChamado,
+    IReadOnlyList<ItemUtilizadoResponseDto> ItensUtilizados
 );

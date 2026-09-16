@@ -195,7 +195,7 @@ JWT (`Bearer <token>`).
 | PUT | `/api/notificacoes/{id}/lida` | Sim | Marca notificação como lida |
 | DELETE | `/api/notificacoes/{id}` | Sim | Remove uma notificação |
 | GET | `/api/ordemservico` | Sim | Lista ordens de serviço |
-| POST | `/api/ordemservico` | Tecnico, Admin | Abre uma ordem de serviço para um chamado, muda status para "Em Execucao" |
+| POST | `/api/ordemservico` | Tecnico, Admin | Abre uma ordem de serviço para um chamado (opcionalmente debitando itens de estoque), muda status para "Em Execucao" |
 | PUT | `/api/ordemservico/{id}/concluir` | Tecnico, Admin | Conclui a ordem de serviço e fecha o chamado |
 
 ## Exemplo de requisição e resposta
@@ -236,11 +236,37 @@ JWT (`Bearer <token>`).
 }
 ```
 
+## Consumo de itens de estoque
+
+Ao abrir uma ordem de serviço (`POST /api/ordemservico`), é possível informar quais itens
+de estoque foram usados no campo opcional `itensUtilizados`:
+
+```json
+{
+  "chamadoId": 1,
+  "tecnicoId": 2,
+  "tempoGastoMinutos": 45,
+  "parecerTecnico": "Troca de lâmpada",
+  "custoMaoObra": 50.00,
+  "itensUtilizados": [
+    { "itemEstoqueId": 3, "quantidadeUtilizada": 2 }
+  ]
+}
+```
+
+Cada item é validado antes de qualquer gravação: precisa existir, a quantidade deve ser
+maior que zero, não pode haver `itemEstoqueId` duplicado na lista, e o estoque disponível
+precisa ser suficiente — caso contrário a API responde `400` sem criar a ordem de serviço
+nem debitar nada. Se a validação passa, o estoque (`ItemEstoque.QuantidadeEstoque`) é
+debitado e um registro é criado em `OrdemServicoItemEstoque` para cada item, na mesma
+operação de criação da ordem de serviço.
+
 ## Próximos passos / limitações conhecidas
 
 - `TecnicoNome` na resposta de um chamado é derivado da sua ordem de serviço mais recente
   (a que ainda está em andamento tem prioridade); um chamado sem ordem de serviço aberta
   retorna `TecnicoNome: null`.
-- Itens de estoque ainda não são debitados automaticamente ao concluir uma ordem de
-  serviço — a tabela de junção `OrdemServicoItemEstoque` existe no modelo, mas o fluxo de
-  consumo de peças ainda não tem endpoint dedicado.
+- A validação e o débito de estoque não usam uma transação/lock explícitos — em uso normal
+  (poucas requisições concorrentes, como no escopo deste trabalho) não é um problema, mas
+  duas ordens de serviço criadas ao mesmo tempo para o mesmo item, na mesma fração de
+  segundo, poderiam ambas passar na validação antes de qualquer uma debitar o estoque.

@@ -48,7 +48,11 @@ public class OrdemServicoController : ControllerBase
         if (tecnico == null)
             return NotFound(Result<object>.FailureResult("Técnico não encontrado."));
 
-        var criada = await _ordemServicoService.CriarAsync(dto, chamado, tecnico);
+        var (erroItens, itensEstoque) = await _ordemServicoService.ValidarItensAsync(dto.ItensUtilizados);
+        if (erroItens != null)
+            return BadRequest(Result<object>.FailureResult(erroItens));
+
+        var criada = await _ordemServicoService.CriarAsync(dto, chamado, tecnico, itensEstoque);
         return CreatedAtAction(nameof(ObterPorId), new { id = criada.Id }, Result<OrdemServicoResponseDto>.SuccessResult(criada, "Ordem de serviço criada com sucesso."));
     }
 
