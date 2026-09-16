@@ -31,10 +31,20 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
         var result = await _authService.LoginAsync(dto);
-        if (result == null) 
+        if (result == null)
             return Unauthorized(Result<object>.FailureResult("Credenciais inválidas."));
 
         return Ok(Result<object>.SuccessResult(result, "Login realizado com sucesso."));
+    }
+
+    // Lista básica de usuários (sem senha) — usada, por exemplo, para escolher um
+    // técnico ao aprovar um chamado. Qualquer usuário autenticado pode consultar.
+    [HttpGet("usuarios")]
+    [Authorize]
+    public async Task<IActionResult> ObterUsuarios()
+    {
+        var usuarios = await _authService.ObterTodosAsync();
+        return Ok(Result<IEnumerable<UsuarioResponseDto>>.SuccessResult(usuarios, "Usuários recuperados com sucesso."));
     }
 
     // Único jeito de virar Tecnico/Admin: um Admin já existente promove outro usuário.

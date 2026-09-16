@@ -46,4 +46,14 @@ public class ChamadosController : ControllerBase
         var chamado = await _chamadoService.CriarAsync(dto, solicitanteId);
         return CreatedAtAction(nameof(ObterPorId), new { id = chamado.Id }, Result<object>.SuccessResult(chamado, "Chamado criado com sucesso."));
     }
+
+    [HttpPut("{id}/cancelar")]
+    public async Task<IActionResult> Cancelar(int id)
+    {
+        var sucesso = await _chamadoService.CancelarAsync(id);
+        if (!sucesso)
+            return NotFound(Result<object>.FailureResult("Chamado não encontrado."));
+
+        return Ok(Result<object>.SuccessResult(null, "Chamado cancelado com sucesso."));
+    }
 }

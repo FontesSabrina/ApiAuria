@@ -45,6 +45,18 @@ public class ChamadoService
         return MapearParaDto(criado!);
     }
 
+    public async Task<bool> CancelarAsync(int id)
+    {
+        var chamado = await _chamadoRepo.GetByIdAsync(id);
+        if (chamado == null) return false;
+
+        chamado.Status = "Cancelado";
+        chamado.DataFechamento = DateTime.UtcNow;
+        _chamadoRepo.Update(chamado);
+        await _chamadoRepo.SaveChangesAsync();
+        return true;
+    }
+
     private static ChamadoResponseDto MapearParaDto(Chamado c) => new(
         c.Id,
         c.Descricao,
@@ -53,8 +65,10 @@ public class ChamadoService
         c.Status,
         c.DataAbertura,
         c.DataFechamento,
+        c.SolicitanteId,
         c.Solicitante?.Nome ?? "Desconhecido",
         ObterTecnicoResponsavel(c)?.Tecnico?.Nome,
+        c.AtivoId,
         c.Ativo?.Ambiente?.Identificacao ?? "Desconhecido",
         c.Ativo?.Nome
     );
