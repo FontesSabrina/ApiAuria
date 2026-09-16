@@ -14,6 +14,8 @@ public class ChamadoRepositoryEF : RepositoryEF<Chamado>, IChamadoRepository
             .Include(c => c.Solicitante)
             .Include(c => c.Ativo!)
                 .ThenInclude(a => a.Ambiente)
+            .Include(c => c.OrdensServico)
+                .ThenInclude(os => os.Tecnico)
             .ToListAsync();
     }
 
@@ -23,6 +25,8 @@ public class ChamadoRepositoryEF : RepositoryEF<Chamado>, IChamadoRepository
             .Include(c => c.Solicitante)
             .Include(c => c.Ativo!)
                 .ThenInclude(a => a.Ambiente)
+            .Include(c => c.OrdensServico)
+                .ThenInclude(os => os.Tecnico)
             .FirstOrDefaultAsync(c => c.Id == id);
     }
 }

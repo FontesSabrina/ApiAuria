@@ -8,6 +8,8 @@ namespace AuriaAPI.Application.Services;
 
 public class AuthService
 {
+    public static readonly string[] PerfisValidos = { "Solicitante", "Tecnico", "Admin" };
+
     private readonly IUsuarioRepository _usuarioRepo;
     private readonly JwtTokenGenerator _jwtGenerator;
 
@@ -48,5 +50,21 @@ public class AuthService
 
         var token = _jwtGenerator.GenerateToken(usuario);
         return new AuthResponseDto(token, usuario.Nome, usuario.Email, usuario.Perfil);
+    }
+
+    // Único caminho para promover um usuário a Tecnico/Admin — protegido por
+    // [Authorize(Roles = "Admin")] no controller. Cadastro público sempre entra como Solicitante.
+    public async Task<UsuarioResponseDto?> AtualizarPerfilAsync(int usuarioId, string perfil)
+    {
+        if (!PerfisValidos.Contains(perfil)) return null;
+
+        var usuario = await _usuarioRepo.GetByIdAsync(usuarioId);
+        if (usuario == null) return null;
+
+        usuario.Perfil = perfil;
+        _usuarioRepo.Update(usuario);
+        await _usuarioRepo.SaveChangesAsync();
+
+        return new UsuarioResponseDto(usuario.Id, usuario.Nome, usuario.Email, usuario.Perfil);
     }
 }

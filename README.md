@@ -57,9 +57,23 @@ AuriaAPI/
 
 Regra de dependência: `Controllers` depende de `Application.Services`, que depende de
 `Domain.Repository` (interfaces) e `Models`; as implementações concretas de persistência
-(`Infra.EF`) são injetadas via DI e não são referenciadas diretamente pelos Controllers
-(exceto em `AtivosController`/`OrdemServicoController`, que hoje acessam o `DbContext`
-diretamente — ver "Próximos passos" abaixo).
+(`Infra.EF`) são injetadas via DI e não são referenciadas diretamente pelos Controllers.
+
+### Controle de acesso por perfil (Roles)
+
+Usuários têm um `Perfil`: `Solicitante`, `Tecnico` ou `Admin` (claim `role` no JWT).
+Todo endpoint autenticado exige apenas um token válido (`[Authorize]`), exceto:
+
+- `POST /api/ordemservico` e `PUT /api/ordemservico/{id}/concluir` — restritos a
+  `Tecnico` ou `Admin` (abrir/concluir uma ordem de serviço é atividade técnica);
+- `PUT /api/auth/usuarios/{id}/perfil` — restrito a `Admin` (promove outro usuário a
+  `Tecnico`/`Admin`).
+
+O cadastro público (`POST /api/auth/register`) sempre cria o usuário como `Solicitante`.
+Não existe endpoint para "auto-promoção" — para ter o primeiro `Admin` do sistema,
+atualize a coluna `perfil` de um usuário diretamente no banco (`UPDATE usuario SET
+perfil = 'Admin' WHERE id = <id>;`); a partir daí, esse Admin pode promover os demais
+via `PUT /api/auth/usuarios/{id}/perfil`.
 
 ### Padronização de respostas — ResultWrapper
 
@@ -157,6 +171,7 @@ JWT (`Bearer <token>`).
 |---|---|---|---|
 | POST | `/api/auth/register` | Não | Cadastra um usuário (perfil `Solicitante`) e retorna token |
 | POST | `/api/auth/login` | Não | Autentica e retorna token JWT |
+| PUT | `/api/auth/usuarios/{id}/perfil` | Admin | Altera o perfil de um usuário (`Solicitante`/`Tecnico`/`Admin`) |
 | GET | `/api/ambientes` | Sim | Lista ambientes (cacheado por 5 min) |
 | GET | `/api/ambientes/{id}` | Sim | Consulta um ambiente |
 | POST | `/api/ambientes` | Sim | Cria um ambiente |
@@ -167,7 +182,7 @@ JWT (`Bearer <token>`).
 | POST | `/api/ativos` | Sim | Cria um ativo (valida se o `AmbienteId` existe) |
 | PUT | `/api/ativos/{id}` | Sim | Atualiza um ativo |
 | DELETE | `/api/ativos/{id}` | Sim | Remove um ativo |
-| GET | `/api/chamados` | Sim | Lista chamados com detalhes (solicitante, ativo, ambiente) |
+| GET | `/api/chamados` | Sim | Lista chamados com detalhes (solicitante, técnico responsável, ativo, ambiente) |
 | GET | `/api/chamados/{id}` | Sim | Consulta um chamado |
 | POST | `/api/chamados` | Sim | Abre um chamado (solicitante = usuário autenticado) |
 | GET | `/api/itensestoque` | Sim | Lista itens de estoque |
@@ -179,8 +194,8 @@ JWT (`Bearer <token>`).
 | PUT | `/api/notificacoes/{id}/lida` | Sim | Marca notificação como lida |
 | DELETE | `/api/notificacoes/{id}` | Sim | Remove uma notificação |
 | GET | `/api/ordemservico` | Sim | Lista ordens de serviço |
-| POST | `/api/ordemservico` | Sim | Abre uma ordem de serviço para um chamado, muda status para "Em Execucao" |
-| PUT | `/api/ordemservico/{id}/concluir` | Sim | Conclui a ordem de serviço e fecha o chamado |
+| POST | `/api/ordemservico` | Tecnico, Admin | Abre uma ordem de serviço para um chamado, muda status para "Em Execucao" |
+| PUT | `/api/ordemservico/{id}/concluir` | Tecnico, Admin | Conclui a ordem de serviço e fecha o chamado |
 
 ## Exemplo de requisição e resposta
 
@@ -222,9 +237,9 @@ JWT (`Bearer <token>`).
 
 ## Próximos passos / limitações conhecidas
 
-- `AtivosController` e `OrdemServicoController` acessam o `AuriaDbContext` diretamente em
-  vez de passar por uma camada de serviço dedicada (assim como `Ambiente`, `ItemEstoque`,
-  `Chamado` e `Notificacao` já fazem); é uma evolução arquitetural pendente.
-- `Chamado` ainda não guarda referência direta ao técnico responsável — o campo
-  `TecnicoNome` da resposta de chamados fica `null` até essa relação ser modelada
-  (hoje o vínculo só existe indiretamente via `OrdemServico`).
+- `TecnicoNome` na resposta de um chamado é derivado da sua ordem de serviço mais recente
+  (a que ainda está em andamento tem prioridade); um chamado sem ordem de serviço aberta
+  retorna `TecnicoNome: null`.
+- Itens de estoque ainda não são debitados automaticamente ao concluir uma ordem de
+  serviço — a tabela de junção `OrdemServicoItemEstoque` existe no modelo, mas o fluxo de
+  consumo de peças ainda não tem endpoint dedicado.
