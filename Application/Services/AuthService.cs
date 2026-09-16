@@ -39,7 +39,7 @@ public class AuthService
         await _usuarioRepo.SaveChangesAsync();
 
         var token = _jwtGenerator.GenerateToken(novoUsuario);
-        return new AuthResponseDto(token, novoUsuario.Nome, novoUsuario.Email, novoUsuario.Perfil);
+        return new AuthResponseDto(novoUsuario.Id, token, novoUsuario.Nome, novoUsuario.Email, novoUsuario.Perfil);
     }
 
     public async Task<AuthResponseDto?> LoginAsync(LoginDto dto)
@@ -49,7 +49,13 @@ public class AuthService
             return null;
 
         var token = _jwtGenerator.GenerateToken(usuario);
-        return new AuthResponseDto(token, usuario.Nome, usuario.Email, usuario.Perfil);
+        return new AuthResponseDto(usuario.Id, token, usuario.Nome, usuario.Email, usuario.Perfil);
+    }
+
+    public async Task<IEnumerable<UsuarioResponseDto>> ObterTodosAsync()
+    {
+        var usuarios = await _usuarioRepo.GetAllAsync();
+        return usuarios.Select(u => new UsuarioResponseDto(u.Id, u.Nome, u.Email, u.Perfil));
     }
 
     // Único caminho para promover um usuário a Tecnico/Admin — protegido por

@@ -58,9 +58,9 @@ public class OrdemServicoController : ControllerBase
 
     [HttpPut("{id}/concluir")]
     [Authorize(Roles = "Tecnico,Admin")]
-    public async Task<IActionResult> Concluir(int id)
+    public async Task<IActionResult> Concluir(int id, [FromBody] ConcluirOrdemServicoDto? dto = null)
     {
-        var sucesso = await _ordemServicoService.ConcluirAsync(id);
+        var sucesso = await _ordemServicoService.ConcluirAsync(id, dto);
         if (!sucesso)
             return NotFound(Result<object>.FailureResult("Ordem de serviço não encontrada."));
 

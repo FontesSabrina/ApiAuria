@@ -5,7 +5,7 @@ public record LoginDto(string Email, string Senha);
 
 public record RegisterDto(string Nome, string Email, string Senha);
 
-public record AuthResponseDto(string Token, string Nome, string Email, string Role);
+public record AuthResponseDto(int Id, string Token, string Nome, string Email, string Role);
 
 public record AtualizarPerfilDto(string Perfil);
 

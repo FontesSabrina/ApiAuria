@@ -123,7 +123,7 @@ public class OrdemServicoService
         );
     }
 
-    public async Task<bool> ConcluirAsync(int id)
+    public async Task<bool> ConcluirAsync(int id, ConcluirOrdemServicoDto? dto = null)
     {
         var ordemServico = await _context.OrdensServico
             .Include(os => os.Chamado)
@@ -132,6 +132,10 @@ public class OrdemServicoService
         if (ordemServico == null) return false;
 
         ordemServico.DataConclusao = DateTime.UtcNow;
+        if (dto?.TempoGastoMinutos is int tempoGasto) ordemServico.TempoGastoMinutos = tempoGasto;
+        if (dto?.ParecerTecnico is string parecer) ordemServico.ParecerTecnico = parecer;
+        if (dto?.CustoMaoObra is decimal custo) ordemServico.CustoMaoObra = custo;
+
         if (ordemServico.Chamado != null)
         {
             ordemServico.Chamado.Status = "Concluido";

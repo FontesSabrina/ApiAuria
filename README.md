@@ -161,17 +161,25 @@ JWT (`Bearer <token>`).
 
 ## Como executar o aplicativo Flutter
 
-- Aponte a `baseUrl` do cliente HTTP do app Flutter para o endereço onde a Auria API está
-  rodando (ex.: `http://localhost:5131/api`).
-- _completar com as instruções específicas do projeto Flutter (pasta do app, comando
-  `flutter pub get` / `flutter run`, etc.)._
+O app fica em [`../flutter_aura_2026`](../flutter_aura_2026) (README próprio lá). Resumo:
+
+```bash
+cd ../flutter_aura_2026
+flutter pub get
+flutter run -d windows   # ou -d chrome, se não tiver o Visual Studio instalado
+```
+
+A `baseUrl` usada pelo app fica em `lib/core/network/api_config.dart` — por padrão
+`http://localhost:5131/api`, pensada para rodar como Windows Desktop na mesma máquina
+que a API. Ajuste esse arquivo se for rodar num emulador Android ou dispositivo físico.
 
 ## Principais endpoints
 
 | Método | Rota | Autenticação | Descrição |
 |---|---|---|---|
-| POST | `/api/auth/register` | Não | Cadastra um usuário (perfil `Solicitante`) e retorna token |
-| POST | `/api/auth/login` | Não | Autentica e retorna token JWT |
+| POST | `/api/auth/register` | Não | Cadastra um usuário (perfil `Solicitante`) e retorna token + id |
+| POST | `/api/auth/login` | Não | Autentica e retorna token JWT + id |
+| GET | `/api/auth/usuarios` | Sim | Lista usuários (id, nome, email, perfil — sem senha) |
 | PUT | `/api/auth/usuarios/{id}/perfil` | Admin | Altera o perfil de um usuário (`Solicitante`/`Tecnico`/`Admin`) |
 | GET | `/api/ambientes` | Sim | Lista ambientes (cacheado por 5 min) |
 | GET | `/api/ambientes/{id}` | Sim | Consulta um ambiente |
@@ -186,6 +194,7 @@ JWT (`Bearer <token>`).
 | GET | `/api/chamados` | Sim | Lista chamados com detalhes (solicitante, técnico responsável, ativo, ambiente) |
 | GET | `/api/chamados/{id}` | Sim | Consulta um chamado |
 | POST | `/api/chamados` | Sim | Abre um chamado (solicitante = usuário autenticado) |
+| PUT | `/api/chamados/{id}/cancelar` | Sim | Cancela um chamado |
 | GET | `/api/itensestoque` | Sim | Lista itens de estoque |
 | POST | `/api/itensestoque` | Sim | Cria um item de estoque |
 | PUT | `/api/itensestoque/{id}` | Sim | Atualiza um item de estoque |
@@ -196,7 +205,7 @@ JWT (`Bearer <token>`).
 | DELETE | `/api/notificacoes/{id}` | Sim | Remove uma notificação |
 | GET | `/api/ordemservico` | Sim | Lista ordens de serviço |
 | POST | `/api/ordemservico` | Tecnico, Admin | Abre uma ordem de serviço para um chamado (opcionalmente debitando itens de estoque), muda status para "Em Execucao" |
-| PUT | `/api/ordemservico/{id}/concluir` | Tecnico, Admin | Conclui a ordem de serviço e fecha o chamado |
+| PUT | `/api/ordemservico/{id}/concluir` | Tecnico, Admin | Conclui a ordem de serviço e fecha o chamado (corpo opcional: `tempoGastoMinutos`, `parecerTecnico`, `custoMaoObra`, para preencher esses dados só na conclusão) |
 
 ## Exemplo de requisição e resposta
 
@@ -216,6 +225,7 @@ JWT (`Bearer <token>`).
   "success": true,
   "message": "Login realizado com sucesso.",
   "data": {
+    "id": 1,
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "nome": "Maria Silva",
     "email": "usuario@exemplo.com",
@@ -260,6 +270,17 @@ precisa ser suficiente — caso contrário a API responde `400` sem criar a orde
 nem debitar nada. Se a validação passa, o estoque (`ItemEstoque.QuantidadeEstoque`) é
 debitado e um registro é criado em `OrdemServicoItemEstoque` para cada item, na mesma
 operação de criação da ordem de serviço.
+
+## Integração com o app Flutter
+
+O app em [`../flutter_aura_2026`](../flutter_aura_2026) foi migrado de armazenamento
+local (sqflite/memória) para consumir esta API via `http` + JWT. Duas divergências de
+modelagem entre o app e a API foram resolvidas do lado do Flutter (ver README de lá):
+`Ativo` passou a referenciar um `Ambiente` por id (antes era texto livre), e o
+formulário de Ordem de Serviço soma "custo de peças" + "custo de mão de obra" num único
+valor antes de enviar (a API guarda só `CustoMaoObra`). Duas telas do app (excluir
+usuário e editar nome/e-mail de um usuário já existente) não têm endpoint correspondente
+aqui de propósito — a API não expõe esse tipo de gestão administrativa ampla.
 
 ## Próximos passos / limitações conhecidas
 

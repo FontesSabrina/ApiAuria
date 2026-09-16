@@ -15,8 +15,10 @@ public record ChamadoResponseDto(
     string Status,
     DateTime DataAbertura,
     DateTime? DataFechamento,
+    int SolicitanteId,
     string SolicitanteNome,
     string? TecnicoNome,
+    int AtivoId,
     string AmbienteNome,
     string? AtivoNome
 );
