@@ -12,9 +12,13 @@ using Microsoft.OpenApi.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. Configurar Banco de Dados MySQL
+// Versão fixa em vez de ServerVersion.AutoDetect: evita depender de uma conexão
+// bem-sucedida ao banco só para descobrir a versão a cada resolução do DbContext.
+// Ajuste para a versão real do seu MySQL se for diferente de 8.0.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var mySqlVersion = new MySqlServerVersion(new Version(8, 0, 36));
 builder.Services.AddDbContext<AuriaDbContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+    options.UseMySql(connectionString, mySqlVersion));
 
 // 2. Injeção de Dependência (Repositories e Services)
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepositoryEF>();
@@ -119,6 +123,8 @@ app.UseSwaggerUI(c =>
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Auria API v1");
     c.RoutePrefix = "swagger";
 });
+
+app.UseHttpsRedirection();
 
 // Ativa o CORS antes do pipeline de autenticação
 app.UseCors("Default");
