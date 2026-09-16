@@ -8,7 +8,8 @@ Trabalho prático da disciplina de Engenharia de Software — 2026.
 
 ## Integrantes da equipe
 
-- _preencher com nome(s) e e-mail(s) dos integrantes_
+ Sabrina Fontes  - Sabrinacfontes@gmail.com
+ Alexandre Quintão - aleequintogti@gmail.com 
 
 ## Descrição do sistema
 
