@@ -25,6 +25,7 @@ builder.Services.AddScoped<AmbienteService>();
 builder.Services.AddScoped<AtivoService>();
 builder.Services.AddScoped<ItemEstoqueService>();
 builder.Services.AddScoped<NotificacaoService>();
+builder.Services.AddScoped<OrdemServicoService>();
 builder.Services.AddSingleton<JwtTokenGenerator>();
 builder.Services.AddMemoryCache();
 

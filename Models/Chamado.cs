@@ -20,4 +20,6 @@ public class Chamado
 
     public int AtivoId { get; set; }
     public Ativo? Ativo { get; set; }
+
+    public ICollection<OrdemServico> OrdensServico { get; set; } = new List<OrdemServico>();
 }

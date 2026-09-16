@@ -1,6 +1,7 @@
 using AuriaAPI.Application.DTOs;
 using AuriaAPI.Application.Services;
 using AuriaAPI.Common; // Importante para usar o Result
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AuriaAPI.Controllers;
@@ -34,5 +35,21 @@ public class AuthController : ControllerBase
             return Unauthorized(Result<object>.FailureResult("Credenciais inválidas."));
 
         return Ok(Result<object>.SuccessResult(result, "Login realizado com sucesso."));
+    }
+
+    // Único jeito de virar Tecnico/Admin: um Admin já existente promove outro usuário.
+    // Para o primeiro Admin do sistema, defina o Perfil diretamente no banco (ver README).
+    [HttpPut("usuarios/{id}/perfil")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> AtualizarPerfil(int id, [FromBody] AtualizarPerfilDto dto)
+    {
+        if (!AuthService.PerfisValidos.Contains(dto.Perfil))
+            return BadRequest(Result<object>.FailureResult($"Perfil inválido. Valores aceitos: {string.Join(", ", AuthService.PerfisValidos)}."));
+
+        var usuario = await _authService.AtualizarPerfilAsync(id, dto.Perfil);
+        if (usuario == null)
+            return NotFound(Result<object>.FailureResult("Usuário não encontrado."));
+
+        return Ok(Result<UsuarioResponseDto>.SuccessResult(usuario, "Perfil atualizado com sucesso."));
     }
 }

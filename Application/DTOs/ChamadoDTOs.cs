@@ -3,12 +3,14 @@ namespace AuriaAPI.Application.DTOs;
 public record CriarChamadoDto(
     string Descricao,
     string Prioridade,
-    int AtivoId
+    int AtivoId,
+    string? TipoManutencao
 );
 
 public record ChamadoResponseDto(
     int Id,
     string Descricao,
+    string TipoManutencao,
     string Prioridade,
     string Status,
     DateTime DataAbertura,

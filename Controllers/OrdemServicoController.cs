@@ -1,9 +1,8 @@
-using AuriaAPI.Models;
-using AuriaAPI.Infra.EF;
-using AuriaAPI.Common; // Importante para o Result Wrapper
+using AuriaAPI.Application.DTOs;
+using AuriaAPI.Application.Services;
+using AuriaAPI.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AuriaAPI.Controllers;
 
@@ -12,136 +11,55 @@ namespace AuriaAPI.Controllers;
 [Authorize]
 public class OrdemServicoController : ControllerBase
 {
-    private readonly AuriaDbContext _context;
+    private readonly OrdemServicoService _ordemServicoService;
 
-    public OrdemServicoController(AuriaDbContext context)
+    public OrdemServicoController(OrdemServicoService ordemServicoService)
     {
-        _context = context;
+        _ordemServicoService = ordemServicoService;
     }
 
     [HttpGet]
     public async Task<IActionResult> ObterTodas()
     {
-        var ordens = await _context.OrdensServico
-            .Include(os => os.Chamado)
-            .Include(os => os.Tecnico)
-            .Select(os => new
-            {
-                os.Id,
-                os.ChamadoId,
-                os.TecnicoId,
-                TecnicoNome = os.Tecnico != null ? os.Tecnico.Nome : null,
-                os.TempoGastoMinutos,
-                os.ParecerTecnico,
-                os.CustoMaoObra,
-                os.DataInicio,
-                os.DataConclusao,
-                StatusChamado = os.Chamado != null ? os.Chamado.Status : null
-            })
-            .ToListAsync();
-
-        return Ok(Result<object>.SuccessResult(ordens, "Ordens de serviço recuperadas com sucesso."));
+        var ordens = await _ordemServicoService.ObterTodasAsync();
+        return Ok(Result<IEnumerable<OrdemServicoResponseDto>>.SuccessResult(ordens, "Ordens de serviço recuperadas com sucesso."));
     }
 
-    // ADICIONADO: Necessário para o CreatedAtAction do método Criar funcionar corretamente
     [HttpGet("{id}")]
     public async Task<IActionResult> ObterPorId(int id)
     {
-        var ordemServico = await _context.OrdensServico
-            .Include(os => os.Chamado)
-            .Include(os => os.Tecnico)
-            .Where(os => os.Id == id)
-            .Select(os => new
-            {
-                os.Id,
-                os.ChamadoId,
-                os.TecnicoId,
-                TecnicoNome = os.Tecnico != null ? os.Tecnico.Nome : null,
-                os.TempoGastoMinutos,
-                os.ParecerTecnico,
-                os.CustoMaoObra,
-                os.DataInicio,
-                os.DataConclusao,
-                StatusChamado = os.Chamado != null ? os.Chamado.Status : null
-            })
-            .FirstOrDefaultAsync();
-
+        var ordemServico = await _ordemServicoService.ObterPorIdAsync(id);
         if (ordemServico == null)
             return NotFound(Result<object>.FailureResult("Ordem de serviço não encontrada."));
 
-        return Ok(Result<object>.SuccessResult(ordemServico, "Ordem de serviço recuperada com sucesso."));
+        return Ok(Result<OrdemServicoResponseDto>.SuccessResult(ordemServico, "Ordem de serviço recuperada com sucesso."));
     }
 
+    // Abrir uma ordem de serviço é uma atividade técnica: só Tecnico/Admin podem assumir um chamado.
     [HttpPost]
-    public async Task<IActionResult> Criar([FromBody] OrdemServicoRequest request)
+    [Authorize(Roles = "Tecnico,Admin")]
+    public async Task<IActionResult> Criar([FromBody] CriarOrdemServicoDto dto)
     {
-        var chamado = await _context.Chamados.FindAsync(request.ChamadoId);
-        if (chamado == null) 
+        var chamado = await _ordemServicoService.ObterChamadoAsync(dto.ChamadoId);
+        if (chamado == null)
             return NotFound(Result<object>.FailureResult("Chamado não encontrado."));
 
-        var tecnico = await _context.Usuarios.FindAsync(request.TecnicoId);
-        if (tecnico == null) 
+        var tecnico = await _ordemServicoService.ObterTecnicoAsync(dto.TecnicoId);
+        if (tecnico == null)
             return NotFound(Result<object>.FailureResult("Técnico não encontrado."));
 
-        var ordemServico = new OrdemServico
-        {
-            ChamadoId = request.ChamadoId,
-            TecnicoId = request.TecnicoId,
-            TempoGastoMinutos = request.TempoGastoMinutos,
-            ParecerTecnico = request.ParecerTecnico,
-            CustoMaoObra = request.CustoMaoObra,
-            DataInicio = DateTime.UtcNow
-        };
-
-        chamado.Status = "Em Execucao";
-
-        _context.OrdensServico.Add(ordemServico);
-        await _context.SaveChangesAsync();
-
-        var resposta = new
-        {
-            ordemServico.Id,
-            ordemServico.ChamadoId,
-            ordemServico.TecnicoId,
-            TecnicoNome = tecnico.Nome,
-            ordemServico.TempoGastoMinutos,
-            ordemServico.ParecerTecnico,
-            ordemServico.CustoMaoObra,
-            ordemServico.DataInicio,
-            ordemServico.DataConclusao,
-            StatusChamado = chamado.Status
-        };
-
-        return CreatedAtAction(nameof(ObterPorId), new { id = ordemServico.Id }, Result<object>.SuccessResult(resposta, "Ordem de serviço criada com sucesso."));
+        var criada = await _ordemServicoService.CriarAsync(dto, chamado, tecnico);
+        return CreatedAtAction(nameof(ObterPorId), new { id = criada.Id }, Result<OrdemServicoResponseDto>.SuccessResult(criada, "Ordem de serviço criada com sucesso."));
     }
 
     [HttpPut("{id}/concluir")]
+    [Authorize(Roles = "Tecnico,Admin")]
     public async Task<IActionResult> Concluir(int id)
     {
-        var ordemServico = await _context.OrdensServico
-            .Include(os => os.Chamado)
-            .FirstOrDefaultAsync(os => os.Id == id);
-
-        if (ordemServico == null) 
+        var sucesso = await _ordemServicoService.ConcluirAsync(id);
+        if (!sucesso)
             return NotFound(Result<object>.FailureResult("Ordem de serviço não encontrada."));
 
-        ordemServico.DataConclusao = DateTime.UtcNow;
-        if (ordemServico.Chamado != null)
-        {
-            ordemServico.Chamado.Status = "Concluido";
-            ordemServico.Chamado.DataFechamento = DateTime.UtcNow;
-        }
-
-        await _context.SaveChangesAsync();
         return Ok(Result<object>.SuccessResult(null, "Ordem de serviço concluída com sucesso."));
     }
-}
-
-public class OrdemServicoRequest
-{
-    public int ChamadoId { get; set; }
-    public int TecnicoId { get; set; }
-    public int TempoGastoMinutos { get; set; } = 0;
-    public string? ParecerTecnico { get; set; }
-    public decimal CustoMaoObra { get; set; } = 0.00m;
 }
