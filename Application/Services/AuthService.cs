@@ -24,9 +24,6 @@ public class AuthService
         var usuarioExistente = await _usuarioRepo.GetByEmailAsync(dto.Email);
         if (usuarioExistente != null) return null;
 
-        // Cadastro público sempre entra como "Solicitante".
-        // Promoção para outros perfis (ex.: Tecnico, Admin) deve ser feita
-        // por um endpoint administrativo separado, protegido por [Authorize(Roles = "Admin")].
         var novoUsuario = new Usuario
         {
             Nome = dto.Nome,
@@ -58,8 +55,6 @@ public class AuthService
         return usuarios.Select(u => new UsuarioResponseDto(u.Id, u.Nome, u.Email, u.Perfil));
     }
 
-    // Único caminho para promover um usuário a Tecnico/Admin — protegido por
-    // [Authorize(Roles = "Admin")] no controller. Cadastro público sempre entra como Solicitante.
     public async Task<UsuarioResponseDto?> AtualizarPerfilAsync(int usuarioId, string perfil)
     {
         if (!PerfisValidos.Contains(perfil)) return null;

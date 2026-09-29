@@ -1,6 +1,6 @@
 using AuriaAPI.Application.DTOs;
 using AuriaAPI.Application.Services;
-using AuriaAPI.Common; // Importante para usar o Result
+using AuriaAPI.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -37,8 +37,6 @@ public class AuthController : ControllerBase
         return Ok(Result<object>.SuccessResult(result, "Login realizado com sucesso."));
     }
 
-    // Lista básica de usuários (sem senha) — usada, por exemplo, para escolher um
-    // técnico ao aprovar um chamado. Qualquer usuário autenticado pode consultar.
     [HttpGet("usuarios")]
     [Authorize]
     public async Task<IActionResult> ObterUsuarios()
@@ -47,8 +45,6 @@ public class AuthController : ControllerBase
         return Ok(Result<IEnumerable<UsuarioResponseDto>>.SuccessResult(usuarios, "Usuários recuperados com sucesso."));
     }
 
-    // Único jeito de virar Tecnico/Admin: um Admin já existente promove outro usuário.
-    // Para o primeiro Admin do sistema, defina o Perfil diretamente no banco (ver README).
     [HttpPut("usuarios/{id}/perfil")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> AtualizarPerfil(int id, [FromBody] AtualizarPerfilDto dto)

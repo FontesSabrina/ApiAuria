@@ -6,8 +6,6 @@ using AuriaAPI.Common;
 
 namespace AuriaAPI.Controllers;
 
-// Corrigido: faltava [Authorize] - antes, todos os endpoints de estoque
-// estavam publicos, diferente do resto da API.
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]

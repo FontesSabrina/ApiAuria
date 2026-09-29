@@ -20,8 +20,6 @@ public class JwtTokenGenerator
         var secretKey = _config["Jwt:SecretKey"];
         if (string.IsNullOrWhiteSpace(secretKey))
         {
-            // Sem fallback hardcoded: se a chave não estiver configurada, a API
-            // deve falhar aqui em vez de assinar tokens com uma chave pública/previsível.
             throw new InvalidOperationException(
                 "Jwt:SecretKey não configurado. Defina em appsettings.Development.json (ambiente local) " +
                 "e via variável de ambiente ou user-secrets em produção. Nunca versione a chave real no Git.");

@@ -62,8 +62,6 @@ public class AmbienteService
         var ambiente = await _context.Ambientes.FindAsync(id);
         if (ambiente == null) return null;
 
-        // Atualiza campo a campo (em vez de EntityState.Modified no objeto inteiro
-        // vindo do cliente), evitando sobrescrever colunas que o DTO não expõe.
         ambiente.Identificacao = dto.Identificacao;
         ambiente.PredioBloco = dto.PredioBloco;
         ambiente.Andar = dto.Andar;

@@ -35,7 +35,6 @@ public class OrdemServicoController : ControllerBase
         return Ok(Result<OrdemServicoResponseDto>.SuccessResult(ordemServico, "Ordem de serviço recuperada com sucesso."));
     }
 
-    // Abrir uma ordem de serviço é uma atividade técnica: só Tecnico/Admin podem assumir um chamado.
     [HttpPost]
     [Authorize(Roles = "Tecnico,Admin")]
     public async Task<IActionResult> Criar([FromBody] CriarOrdemServicoDto dto)

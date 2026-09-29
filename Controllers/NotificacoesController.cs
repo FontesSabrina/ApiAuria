@@ -25,7 +25,6 @@ public class NotificacoesController : ControllerBase
         return Ok(Result<IEnumerable<NotificacaoResponseDto>>.SuccessResult(notificacoes, "Notificações recuperadas com sucesso."));
     }
 
-    // Corrigido: id agora é int, igual ao restante da API (a coluna no banco é inteira).
     [HttpGet("{id:int}")]
     public async Task<IActionResult> ObterPorId(int id)
     {
