@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using AuriaAPI.Application.DTOs;
 using AuriaAPI.Application.Services;
-using AuriaAPI.Common; // Importante para o Result Wrapper
+using AuriaAPI.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

@@ -5,7 +5,6 @@ public class Chamado
     public int Id { get; set; }
     public string Descricao { get; set; } = string.Empty;
     
-    // Novo campo adicionado conforme o diagrama do banco de dados
     public string? LocalizacaoDetalhada { get; set; }
 
     public string TipoManutencao { get; set; } = "Corretiva";

@@ -20,7 +20,6 @@ public class AuriaDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Mapeamento explícito das tabelas do MySQL (aura_db)
         modelBuilder.Entity<Usuario>(entity =>
         {
             entity.ToTable("usuario");
@@ -36,14 +35,12 @@ public class AuriaDbContext : DbContext
         });
         modelBuilder.Entity<Notificacao>().ToTable("notificacao");
 
-        // Chave composta da tabela de junção OrdemServico <-> ItemEstoque
         modelBuilder.Entity<OrdemServicoItemEstoque>(entity =>
         {
             entity.ToTable("ordem_servico_item_estoque");
             entity.HasKey(e => new { e.OrdemServicoId, e.ItemEstoqueId });
         });
 
-        // Evita exclusão em cascata de Chamados/Ordens de Serviço ao remover um Ativo/Ambiente
         modelBuilder.Entity<Ativo>()
             .HasOne(a => a.Ambiente)
             .WithMany(a => a.Ativos)
@@ -56,7 +53,6 @@ public class AuriaDbContext : DbContext
             .HasForeignKey(c => c.AtivoId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Mapeamento explícito da tabela e colunas de OrdemServico
         modelBuilder.Entity<OrdemServico>(entity =>
         {
             entity.ToTable("ordem_servico");

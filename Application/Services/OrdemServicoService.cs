@@ -44,9 +44,6 @@ public class OrdemServicoService
     public Task<Usuario?> ObterTecnicoAsync(int tecnicoId) =>
         _context.Usuarios.FirstOrDefaultAsync(u => u.Id == tecnicoId);
 
-    // Confere existência, duplicidade e estoque disponível de cada item antes de qualquer
-    // escrita. Retorna os ItemEstoque já carregados para CriarAsync reaproveitar (evita
-    // buscar cada item duas vezes) e evita debitar estoque parcialmente em caso de erro.
     public async Task<(string? Erro, Dictionary<int, ItemEstoque> Itens)> ValidarItensAsync(
         IReadOnlyList<ItemUtilizadoDto>? itensUtilizados)
     {

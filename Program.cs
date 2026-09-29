@@ -11,16 +11,11 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configurar Banco de Dados MySQL
-// Versão fixa em vez de ServerVersion.AutoDetect: evita depender de uma conexão
-// bem-sucedida ao banco só para descobrir a versão a cada resolução do DbContext.
-// Ajuste para a versão real do seu MySQL se for diferente de 8.0.
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 var mySqlVersion = new MySqlServerVersion(new Version(8, 0, 36));
 builder.Services.AddDbContext<AuriaDbContext>(options =>
     options.UseMySql(connectionString, mySqlVersion));
 
-// 2. Injeção de Dependência (Repositories e Services)
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepositoryEF>();
 builder.Services.AddScoped<IChamadoRepository, ChamadoRepositoryEF>();
 builder.Services.AddScoped<AuthService>();
@@ -33,9 +28,6 @@ builder.Services.AddScoped<OrdemServicoService>();
 builder.Services.AddSingleton<JwtTokenGenerator>();
 builder.Services.AddMemoryCache();
 
-// 3. Configurar CORS (Libera requisições HTTP do Swagger e Flutter)
-// Em produção, restrinja aos domínios reais via appsettings ("Cors:AllowedOrigins"),
-// nunca use AllowAnyOrigin combinado com dados sensíveis/autenticação.
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
 builder.Services.AddCors(options =>
 {
@@ -52,9 +44,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 4. Autenticação JWT
-// Sem fallback hardcoded: a chave real deve vir de appsettings.Development.json (dev)
-// ou de variável de ambiente/user-secrets (produção), nunca de um valor fixo no código.
 var secretKey = builder.Configuration["Jwt:SecretKey"]
     ?? throw new InvalidOperationException("Jwt:SecretKey não configurado.");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -75,14 +64,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-// Controllers configurados para ignorar ciclos de referência durante a serialização JSON
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
 
-// 5. Configurar Swagger com suporte ao botão Authorize (Bearer Token)
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -116,7 +103,6 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// 6. Middlewares e Rotas
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -126,7 +112,6 @@ app.UseSwaggerUI(c =>
 
 app.UseHttpsRedirection();
 
-// Ativa o CORS antes do pipeline de autenticação
 app.UseCors("Default");
 
 app.UseAuthentication();

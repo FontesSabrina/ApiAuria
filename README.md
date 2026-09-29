@@ -148,7 +148,8 @@ listagem de ambientes (`GET /api/ambientes`):
 Pré-requisitos: .NET 9 SDK e um servidor MySQL acessível.
 
 ```bash
-cd AuriaAPI
+git clone https://github.com/FontesSabrina/ApiAuria.git
+cd ApiAuria
 dotnet restore
 dotnet ef database update
 dotnet run
