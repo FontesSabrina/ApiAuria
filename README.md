@@ -272,23 +272,5 @@ nem debitar nada. Se a validação passa, o estoque (`ItemEstoque.QuantidadeEsto
 debitado e um registro é criado em `OrdemServicoItemEstoque` para cada item, na mesma
 operação de criação da ordem de serviço.
 
-## Integração com o app Flutter
 
-O app em [`../flutter_aura_2026`](../flutter_aura_2026) foi migrado de armazenamento
-local (sqflite/memória) para consumir esta API via `http` + JWT. Duas divergências de
-modelagem entre o app e a API foram resolvidas do lado do Flutter (ver README de lá):
-`Ativo` passou a referenciar um `Ambiente` por id (antes era texto livre), e o
-formulário de Ordem de Serviço soma "custo de peças" + "custo de mão de obra" num único
-valor antes de enviar (a API guarda só `CustoMaoObra`). Duas telas do app (excluir
-usuário e editar nome/e-mail de um usuário já existente) não têm endpoint correspondente
-aqui de propósito — a API não expõe esse tipo de gestão administrativa ampla.
 
-## Próximos passos / limitações conhecidas
-
-- `TecnicoNome` na resposta de um chamado é derivado da sua ordem de serviço mais recente
-  (a que ainda está em andamento tem prioridade); um chamado sem ordem de serviço aberta
-  retorna `TecnicoNome: null`.
-- A validação e o débito de estoque não usam uma transação/lock explícitos — em uso normal
-  (poucas requisições concorrentes, como no escopo deste trabalho) não é um problema, mas
-  duas ordens de serviço criadas ao mesmo tempo para o mesmo item, na mesma fração de
-  segundo, poderiam ambas passar na validação antes de qualquer uma debitar o estoque.
