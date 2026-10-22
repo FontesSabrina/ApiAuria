@@ -1,0 +1,164 @@
+# Roteiro de demonstração da AuriaAPI
+# Use no VS Code (extensão "REST Client") ou no Visual Studio: clique em "Send Request" acima de cada bloco.
+# Antes: API rodando (dotnet run) e admin inicial configurado (seção AdminInicial / user-secrets).
+# Os blocos com "# @name" guardam a resposta para os próximos usarem (ex.: o token).
+
+@host = http://localhost:5131/api
+@adminEmail = admin@auria.com
+@adminSenha = Admin@123
+
+### 1) Login do admin → gera o JWT
+# @name loginAdmin
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{adminEmail}}", "senha": "{{adminSenha}}" }
+
+###
+@tokenAdmin = {{loginAdmin.response.body.$.data.token}}
+
+### 2) Login inválido → 401 no formato do ResultWrapper
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "{{adminEmail}}", "senha": "senha-errada" }
+
+### 3) Endpoint protegido SEM token → 401
+GET {{host}}/ambientes
+
+### 4) Validação de dados → 400 com a lista de erros
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{ "nome": "A", "email": "nao-e-email", "senha": "123" }
+
+### 5) Cache — 1ª chamada: [CACHE MISS] no console (busca no banco)
+GET {{host}}/ambientes
+Authorization: Bearer {{tokenAdmin}}
+
+### 6) Cache — 2ª chamada: [CACHE HIT] no console (não acessa o banco)
+GET {{host}}/ambientes
+Authorization: Bearer {{tokenAdmin}}
+
+### 7) Criar ambiente → [CACHE INVALIDADO] no console
+# @name ambiente
+POST {{host}}/ambientes
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "identificacao": "Sala 101", "predioBloco": "Bloco A", "andar": "1º", "observacoes": "Laboratório" }
+
+### 8) Criar ativo no ambiente
+# @name ativo
+POST {{host}}/ativos
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "patrimonio": "PAT-0001", "nome": "Ar-condicionado 12000 BTU", "estadoConservacao": "Regular",
+  "dataAquisicao": "2022-01-10T00:00:00", "ambienteId": {{ambiente.response.body.$.data.id}} }
+
+### 9) Criar item de estoque
+# @name item
+POST {{host}}/itensestoque
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "nome": "Filtro de ar", "codigoInterno": "FLT-01", "quantidadeEstoque": 3, "estoqueMinimo": 2, "custoUnitario": 35.90 }
+
+### 10) Criar um técnico (Admin cria usuário já com perfil)
+# @name tecnico
+POST {{host}}/usuarios
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "nome": "Carlos Técnico", "email": "carlos@auria.com", "senha": "Tecnico@123", "perfil": "Tecnico" }
+
+### 11) Cadastro público de um solicitante (já retorna token)
+# @name solicitante
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{ "nome": "Ana Solicitante", "email": "ana@auria.com", "senha": "Ana@1234" }
+
+###
+@tokenSolicitante = {{solicitante.response.body.$.data.token}}
+
+### 12) Solicitante tentando acessar área de Admin → 403
+GET {{host}}/indicadores
+Authorization: Bearer {{tokenSolicitante}}
+
+### 13) Solicitante abre um chamado (os admins são notificados)
+# @name chamado
+POST {{host}}/chamados
+Authorization: Bearer {{tokenSolicitante}}
+Content-Type: application/json
+
+{ "descricao": "Ar-condicionado pingando água", "prioridade": "Alta", "tipoManutencao": "Corretiva",
+  "ativoId": {{ativo.response.body.$.data.id}} }
+
+### 14) Admin aprova: abre a OS designando o técnico (chamado → "Em Execucao")
+# @name os
+POST {{host}}/ordemservico
+Authorization: Bearer {{tokenAdmin}}
+Content-Type: application/json
+
+{ "chamadoId": {{chamado.response.body.$.data.id}}, "tecnicoId": {{tecnico.response.body.$.data.id}},
+  "tempoGastoMinutos": 0, "custoMaoObra": 0 }
+
+### 15) Login do técnico
+# @name loginTecnico
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "carlos@auria.com", "senha": "Tecnico@123" }
+
+###
+@tokenTecnico = {{loginTecnico.response.body.$.data.token}}
+
+### 16) Técnico vê as ordens designadas a ele
+GET {{host}}/ordemservico/minhas
+Authorization: Bearer {{tokenTecnico}}
+
+### 17) Técnico registra consumo de 2 filtros (estoque 3 → 1, abaixo do mínimo → admins notificados)
+POST {{host}}/ordemservico/{{os.response.body.$.data.id}}/itens
+Authorization: Bearer {{tokenTecnico}}
+Content-Type: application/json
+
+{ "itens": [ { "itemEstoqueId": {{item.response.body.$.data.id}}, "quantidadeUtilizada": 2 } ] }
+
+### 18) Regra de negócio: consumir mais do que há em estoque → 400
+POST {{host}}/ordemservico/{{os.response.body.$.data.id}}/itens
+Authorization: Bearer {{tokenTecnico}}
+Content-Type: application/json
+
+{ "itens": [ { "itemEstoqueId": {{item.response.body.$.data.id}}, "quantidadeUtilizada": 50 } ] }
+
+### 19) Técnico conclui a OS (chamado → "Concluido", solicitante notificado)
+PUT {{host}}/ordemservico/{{os.response.body.$.data.id}}/concluir
+Authorization: Bearer {{tokenTecnico}}
+Content-Type: application/json
+
+{ "tempoGastoMinutos": 90, "parecerTecnico": "Filtros trocados e dreno desobstruído.", "custoMaoObra": 120.00 }
+
+### 20) Concluir de novo → 400 (regra de negócio)
+PUT {{host}}/ordemservico/{{os.response.body.$.data.id}}/concluir
+Authorization: Bearer {{tokenTecnico}}
+Content-Type: application/json
+
+{}
+
+### 21) Notificações do solicitante (só as dele)
+GET {{host}}/notificacoes
+Authorization: Bearer {{tokenSolicitante}}
+
+### 22) Indicadores — 1ª chamada calcula (MISS); repita e veja o HIT e o "geradoEm" igual
+GET {{host}}/indicadores
+Authorization: Bearer {{tokenAdmin}}
+
+### 23) Alertas de preventiva (o ar-condicionado aparece: estado Regular e mais de 2 anos de uso)
+GET {{host}}/planejamento/alertas
+Authorization: Bearer {{tokenAdmin}}
+
+### 24) Excluir ambiente com ativos → 409
+DELETE {{host}}/ambientes/{{ambiente.response.body.$.data.id}}
+Authorization: Bearer {{tokenAdmin}}

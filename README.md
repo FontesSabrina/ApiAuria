@@ -1,225 +1,414 @@
-# Auria API
+# Auria — Gestão de Manutenção Predial (API ASP.NET Core + App Flutter)
 
-API REST desenvolvida em ASP.NET Core para o sistema de gestão de manutenção predial
-(ambientes, ativos, chamados, ordens de serviço e estoque), evoluindo o aplicativo Flutter
-desenvolvido anteriormente de um armazenamento local para uma arquitetura cliente-servidor.
+Trabalho prático da disciplina de **Engenharia de Software** — IF Sudeste MG, Campus Muriaé (2026).
 
-Trabalho prático da disciplina de Engenharia de Software — 2026.
+Evolução do sistema **Aura**, que antes funcionava só no aplicativo Flutter com armazenamento local,
+para uma arquitetura **cliente-servidor**: o app Flutter passa a consumir a **AuriaAPI**, uma API REST
+em ASP.NET Core responsável pelas regras de negócio, pelo acesso ao banco MySQL, pela autenticação
+JWT e pelo cache.
+
+```
+┌──────────────────┐   HTTP/HTTPS + JWT    ┌───────────────────────┐   EF Core   ┌─────────┐
+│  App Flutter     │ ────────────────────▶ │  AuriaAPI             │ ──────────▶ │  MySQL  │
+│  (cliente)       │ ◀──── ResultWrapper ── │  (ASP.NET Core 9)     │ ◀────────── │         │
+└──────────────────┘                        └───────────────────────┘             └─────────┘
+```
 
 ## Integrantes da equipe
 
- Sabrina Fontes  - Sabrinacfontes@gmail.com
- Alexandre Quintão - aleequintogti@gmail.com 
+- Sabrina Caetano Fontes — sabrinacfontes@gmail.com
+- Alexandre do Amaral Quintão — aleequintogti@gmail.com
+
+## Sumário
+
+1. [Descrição do sistema](#descrição-do-sistema)
+2. [Tecnologias utilizadas](#tecnologias-utilizadas)
+3. [Estrutura do repositório e da arquitetura](#estrutura-do-repositório-e-da-arquitetura)
+4. [Configuração (banco, JWT e admin inicial)](#configuração-banco-jwt-e-admin-inicial)
+5. [Como executar a API](#como-executar-a-api)
+6. [Como executar o aplicativo Flutter](#como-executar-o-aplicativo-flutter)
+   - [Dados de demonstração e logins de teste](#dados-de-demonstração-e-logins-de-teste)
+   - [Acessibilidade](#acessibilidade)
+7. [Autenticação JWT](#autenticação-jwt)
+8. [Estratégia de cache](#estratégia-de-cache)
+9. [ResultWrapper (padronização das respostas)](#resultwrapper-padronização-das-respostas)
+10. [Principais endpoints](#principais-endpoints)
+11. [Exemplos de requisições e respostas](#exemplos-de-requisições-e-respostas)
+12. [Reproduzindo o projeto do zero (passo a passo)](#reproduzindo-o-projeto-do-zero-passo-a-passo)
+
+---
 
 ## Descrição do sistema
 
-A Auria API centraliza o processamento e a persistência de dados de um sistema de gestão
-de manutenção predial:
+O Auria centraliza a manutenção predial e patrimonial de uma organização:
 
-- **Ambientes**: locais físicos (salas, blocos, andares) onde os ativos estão instalados.
-- **Ativos**: equipamentos/bens patrimoniais vinculados a um ambiente.
-- **Chamados**: solicitações de manutenção abertas por um usuário para um ativo.
-- **Ordens de Serviço**: execução de um chamado por um técnico, com tempo gasto, parecer
-  técnico e custo de mão de obra.
-- **Itens de Estoque**: peças/materiais usados na execução de ordens de serviço.
-- **Notificações**: avisos direcionados a um usuário.
-- **Usuários**: autenticam via JWT e possuem um perfil (`Solicitante`, `Tecnico` ou `Admin`).
+| Módulo | O que faz |
+|---|---|
+| **Ambientes** | Locais físicos (salas, blocos, andares) onde os ativos ficam. |
+| **Ativos** | Equipamentos/bens patrimoniais, vinculados a um ambiente, com estado de conservação. |
+| **Chamados** | Solicitações de manutenção (corretiva, preventiva ou preditiva) abertas por um usuário. |
+| **Ordens de Serviço** | Execução de um chamado por um técnico: peças consumidas, tempo gasto, parecer e custos. |
+| **Estoque** | Peças e materiais; o estoque é debitado automaticamente ao registrar o consumo numa OS. |
+| **Notificações** | Avisos gerados pela API (novo chamado, OS designada, chamado concluído, estoque baixo). |
+| **Indicadores** | Painel de BI: taxa de conclusão, custos, tempo médio de atendimento, ativos com mais falhas. |
+| **Planejamento** | Cronograma de preventivas e alertas de ativos que precisam de manutenção. |
 
-O aplicativo Flutter desenvolvido anteriormente consome esses endpoints via HTTP/HTTPS
-em vez de acessar dados localmente.
+**Perfis de usuário:**
+
+- `Solicitante`: abre chamados e acompanha os próprios chamados.
+- `Tecnico`: executa as ordens de serviço designadas a ele e registra o consumo de peças.
+- `Admin`: gerencia tudo (usuários, ambientes, ativos, estoque, aprovação de chamados, indicadores).
+
+**Fluxo principal:**
+
+1. O solicitante abre um chamado e os admins são notificados.
+2. O admin aprova e designa um técnico: a OS é criada e o chamado passa a **Em Execucao**.
+3. O técnico registra as peças usadas (o estoque é debitado) e conclui a OS.
+4. O chamado passa a **Concluido** e o solicitante é notificado.
 
 ## Tecnologias utilizadas
 
-- **.NET 9 / ASP.NET Core Web API** — framework da API
-- **Entity Framework Core 9** + **Pomelo.EntityFrameworkCore.MySql** — ORM e acesso a um
-  banco **MySQL**
-- **JWT Bearer** (`Microsoft.AspNetCore.Authentication.JwtBearer`) — autenticação
-- **BCrypt.Net-Next** — hash de senhas
-- **Microsoft.Extensions.Caching.Memory** (`IMemoryCache`) — cache em memória
-- **Swashbuckle / Swagger** — documentação e teste interativo dos endpoints
+**API**
 
-## Estrutura da arquitetura
+- **.NET 9 / ASP.NET Core Web API** (C#)
+- **Entity Framework Core 9** + **Pomelo.EntityFrameworkCore.MySql** (ORM, banco **MySQL 8**)
+- **JWT Bearer** (`Microsoft.AspNetCore.Authentication.JwtBearer`) para autenticação
+- **BCrypt.Net-Next** para o hash de senhas
+- **IMemoryCache** (`Microsoft.Extensions.Caching.Memory`) para o cache em memória
+- **Swagger / Swashbuckle** para documentação e teste dos endpoints
+- **Data Annotations** (`[Required]`, `[EmailAddress]`, `[Range]`, `[AllowedValues]`…) para validar as entradas
 
-O projeto segue uma organização em camadas inspirada em Clean Architecture:
+**App**
+
+- **Flutter / Dart**, alvo principal Windows Desktop (também roda na Web)
+- `http` (requisições), `shared_preferences` (guarda o token), `get_it` (injeção de dependências)
+- `fl_chart`, `pdf` e `printing` (painel de indicadores e relatório em PDF)
+
+**Outros:** Git/GitHub, MySQL Workbench (modelo do banco em [`docs/aura_db.sql.mwb`](docs/aura_db.sql.mwb)).
+
+## Estrutura do repositório e da arquitetura
+
+```
+ApiAuria/
+├── AuriaAPI/               ← API ASP.NET Core
+├── flutter_aura_2026/      ← App Flutter (cliente da API)
+├── docs/
+│   ├── DOCUMENTACAO_TECNICA.md   ← decisões de arquitetura (por que cada escolha)
+│   └── aura_db.sql.mwb           ← modelo do banco (MySQL Workbench)
+└── README.md
+```
+
+### Camadas da API (Clean Architecture)
 
 ```
 AuriaAPI/
-├── Models/              # Entidades de domínio (Usuario, Ambiente, Ativo, Chamado, ...)
-├── Domain/Repository/   # Abstrações de persistência (IRepository<T>, IUsuarioRepository, IChamadoRepository)
-├── Application/
-│   ├── DTOs/             # Contratos de entrada/saída dos endpoints (não expõem entidades EF)
-│   └── Services/         # Regras de aplicação/casos de uso (AuthService, ChamadoService, AmbienteService, ...)
-├── Infra/EF/             # Implementação de persistência (AuriaDbContext, RepositoryEF<T>, *RepositoryEF)
-├── Core/Security/        # Geração de token JWT (JwtTokenGenerator)
-├── Common/               # Result<T> — o ResultWrapper usado em todas as respostas
-├── Controllers/          # Camada de apresentação/API (endpoints HTTP)
-└── Program.cs            # Composition root: DI, autenticação, CORS, Swagger, pipeline HTTP
+├── Domain/                 ← núcleo: não depende de nenhuma outra camada
+│   ├── Entities/           Usuario, Ambiente, Ativo, Chamado, OrdemServico, ItemEstoque, Notificacao...
+│   │                       (com regras: Chamado.Cancelar(), OrdemServico.Concluir(), ItemEstoque.Debitar()...)
+│   ├── Constants/          Perfis, StatusChamado, Prioridades, TiposManutencao, EstadosConservacao
+│   ├── Exceptions/         RegraDeNegocioException
+│   └── Repositories/       Interfaces: IRepository<T>, IUnitOfWork, IChamadoRepository, ...
+├── Application/            ← casos de uso: depende só do Domain
+│   ├── Services/           AuthService, ChamadoService, OrdemServicoService, IndicadorService...
+│   ├── Interfaces/         IChamadoService, ..., ICacheService, ITokenService, IPasswordHasher
+│   ├── DTOs/               Contratos de entrada (com validação) e de saída
+│   ├── Mappings/           Entidade → DTO
+│   ├── Exceptions/         RecursoNaoEncontrado (404), AcessoNegado (403), Conflito (409)...
+│   └── Common/             Result<T> (ResultWrapper), UsuarioLogado, ChavesCache
+├── Infra/                  ← detalhes técnicos: implementa as interfaces acima
+│   ├── EF/                 AuriaDbContext, EfUnitOfWork e Repositories/ (EF Core + MySQL)
+│   ├── Cache/              MemoryCacheService (IMemoryCache + logs)
+│   ├── Security/           JwtTokenService, BCryptPasswordHasher, JwtSettings
+│   └── Seed/               AdminSeeder (cria o primeiro Admin)
+├── Api/                    ← apresentação/HTTP
+│   ├── Controllers/        Endpoints REST (finos: recebem, chamam o service, respondem)
+│   ├── Middleware/         ExceptionHandlingMiddleware (erros → ResultWrapper)
+│   └── Extensions/         Registro de dependências, JWT, Swagger, CORS, validação
+├── Migrations/             Migrations do EF Core
+└── Program.cs              Composition root
 ```
 
-Regra de dependência: `Controllers` depende de `Application.Services`, que depende de
-`Domain.Repository` (interfaces) e `Models`; as implementações concretas de persistência
-(`Infra.EF`) são injetadas via DI e não são referenciadas diretamente pelos Controllers.
+**Regra de dependência:** `Api → Application → Domain ← Infra`.
 
-### Controle de acesso por perfil (Roles)
+- O **Domain** não conhece EF Core, HTTP nem JWT.
+- A **Application** só enxerga interfaces: os repositórios, o cache, o gerador de token e o hash de senha.
+- A **Infra** implementa essas interfaces. A ligação entre interface e implementação acontece só no `Program.cs`, por injeção de dependência.
+- Os **Controllers** não têm regra de negócio: chamam um service e devolvem o resultado.
 
-Usuários têm um `Perfil`: `Solicitante`, `Tecnico` ou `Admin` (claim `role` no JWT).
-Todo endpoint autenticado exige apenas um token válido (`[Authorize]`), exceto:
+As justificativas de cada decisão estão em [`docs/DOCUMENTACAO_TECNICA.md`](docs/DOCUMENTACAO_TECNICA.md).
 
-- `POST /api/ordemservico` e `PUT /api/ordemservico/{id}/concluir` — restritos a
-  `Tecnico` ou `Admin` (abrir/concluir uma ordem de serviço é atividade técnica);
-- `PUT /api/auth/usuarios/{id}/perfil` — restrito a `Admin` (promove outro usuário a
-  `Tecnico`/`Admin`).
+### Camadas do app Flutter
 
-O cadastro público (`POST /api/auth/register`) sempre cria o usuário como `Solicitante`.
-Não existe endpoint para "auto-promoção" — para ter o primeiro `Admin` do sistema,
-atualize a coluna `perfil` de um usuário diretamente no banco (`UPDATE usuario SET
-perfil = 'Admin' WHERE id = <id>;`); a partir daí, esse Admin pode promover os demais
-via `PUT /api/auth/usuarios/{id}/perfil`.
-
-### Padronização de respostas — ResultWrapper
-
-Todas as respostas seguem o formato definido em [`Common/Result.cs`](Common/Result.cs):
-
-```json
-{
-  "success": true,
-  "message": "Ambiente criado com sucesso.",
-  "data": { "id": 1, "identificacao": "Sala 101" },
-  "errors": []
-}
+```
+flutter_aura_2026/lib/
+├── core/network/   ApiClient (HTTP + JWT + ResultWrapper), AuthSession (token), api_config (URL da API)
+├── core/ui/        design system: cores (claro/escuro/alto contraste), tipografia, botões, cards, painéis, logo
+├── core/acessibilidade/  preferências de acessibilidade (salvas no aparelho) e o painel de ajustes
+├── data/           datasources/remote (chamadas HTTP) e repositories (implementações)
+├── domain/         entidades, interfaces de repositório e domain services
+└── pages/          login, shell (menu lateral por perfil + estado compartilhado) e views (telas)
 ```
 
-Em caso de erro:
+**Interface:** depois do login, todas as telas ficam dentro de um layout único com menu lateral
+(vira gaveta em telas estreitas), busca, alternância de tema claro/escuro e notificações. O menu muda
+conforme o perfil:
 
-```json
-{
-  "success": false,
-  "message": "Ambiente não encontrado.",
-  "data": null,
-  "errors": []
-}
-```
+- **Admin:** Painel, Chamados (quadro kanban com aprovação no painel lateral), Ordens de serviço,
+  Preventivas, Estoque, Ativos, Ambientes, Usuários, Indicadores e Notificações.
+- **Técnico:** Meu dia, Minhas ordens (execução com registro de peças e conclusão), Chamados, Estoque e Notificações.
+- **Solicitante:** Início, Abrir chamado (em 3 etapas), Meus chamados (com linha do tempo) e Notificações.
 
-## Configuração do banco de dados
+Cadastros e detalhes abrem em painéis que deslizam da direita, sem sair da tela.
 
-O projeto usa MySQL via Pomelo EF Core. A connection string fica em
-`appsettings.Development.json` (não versionado com valores reais em produção):
+**Logo:** o símbolo do Auria é um prédio com uma janela acesa em âmbar ("alguém está cuidando dele").
+Ele é desenhado em código (`core/ui/auria_logo.dart`), aparece no login e no menu, e também é o ícone
+do app na web, no Android, no iOS e no macOS.
 
-```json
-"ConnectionStrings": {
-  "DefaultConnection": "Server=localhost;Database=aura_db;User=root;Password=;"
-}
-```
+**Acessibilidade:** o app funciona com leitor de tela e só pelo teclado, e tem um painel de ajustes
+(tamanho do texto, alto contraste, fonte de leitura facilitada e redução de animações). Detalhes na
+seção [Acessibilidade](#acessibilidade).
 
-Ajuste `Server`, `User` e `Password` para o seu ambiente local. Em seguida, aplique a
-migration `InitialCreate` já versionada em [`Migrations/`](Migrations/):
+## Configuração (banco, JWT e admin inicial)
+
+Os valores sensíveis (senha do banco, chave do JWT e senha do admin) **não ficam no código nem no
+Git**. O `appsettings.json` versionado tem esses campos vazios. Há duas formas de configurar.
+
+**Opção A — `dotnet user-secrets` (recomendada).** Os valores ficam fora da pasta do projeto:
 
 ```bash
-dotnet ef database update
+cd AuriaAPI
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=localhost;Database=aura_db;User=root;Password=SUA_SENHA;"
+dotnet user-secrets set "Jwt:SecretKey" "uma-chave-aleatoria-com-pelo-menos-32-caracteres"
+dotnet user-secrets set "AdminInicial:Nome" "Administrador"
+dotnet user-secrets set "AdminInicial:Email" "admin@auria.com"
+dotnet user-secrets set "AdminInicial:Senha" "Admin@123"
 ```
 
-## Autenticação JWT
+**Opção B — arquivo local.** Copie `AuriaAPI/appsettings.Development.example.json` para
+`AuriaAPI/appsettings.Development.json` e preencha os valores. Esse arquivo está no `.gitignore`.
 
-- `POST /api/auth/register` cria um usuário (senha armazenada com hash via BCrypt, nunca
-  em texto puro) e já retorna um token.
-- `POST /api/auth/login` valida e-mail/senha e retorna um token.
-- O token deve ser enviado no header `Authorization: Bearer <token>` em todos os endpoints
-  marcados com `[Authorize]`.
-- Configuração (`Jwt:SecretKey`, `Jwt:Issuer`, `Jwt:Audience`) fica em
-  `appsettings.Development.json` em desenvolvimento; em produção deve vir de variável de
-  ambiente ou user-secrets — a API falha ao iniciar se a chave não estiver configurada.
-- Token expira em 8 horas e carrega as claims `sub` (id), `name`, `email` e `role`
-  (perfil do usuário).
+Em produção, use variáveis de ambiente, por exemplo `Jwt__SecretKey` e `ConnectionStrings__DefaultConnection`.
 
-## Estratégia de cache
+| Chave | Para que serve |
+|---|---|
+| `ConnectionStrings:DefaultConnection` | Conexão com o MySQL (o banco `aura_db` é criado pela migration). |
+| `Jwt:SecretKey` | Chave de assinatura do token, com **no mínimo 32 caracteres**. A API não inicia sem ela. |
+| `Jwt:Issuer` / `Jwt:Audience` / `Jwt:ExpiracaoHoras` | Emissor, público e validade do token (padrão: `AuriaAPI`, `AuriaAPI`, 8h). |
+| `AdminInicial:*` | Se ainda não existir nenhum Admin, a API cria este usuário ao iniciar. |
+| `DadosDemonstracao:Ativar` / `SenhaUsuarios` | Só em Development: cria usuários de teste, ambientes, ativos, estoque e chamados de exemplo (veja [Dados de demonstração](#dados-de-demonstração-e-logins-de-teste)). Não são dados sensíveis; em produção nada é criado. |
 
-`AmbienteService` (`Application/Services/AmbienteService.cs`) usa `IMemoryCache` na
-listagem de ambientes (`GET /api/ambientes`):
+### Banco de dados
 
-- Na primeira consulta, os dados são buscados no banco e armazenados em cache por
-  **5 minutos** (expiração absoluta).
-- Consultas seguintes dentro desse período são servidas direto do cache, sem acessar o
-  banco.
-- O cache é invalidado (removido) sempre que um ambiente é criado, atualizado ou
-  removido, garantindo que a próxima leitura busque dados atualizados na fonte original.
+- **MySQL 8** acessado pelo **EF Core** com o provedor **Pomelo**.
+- Tabelas: `usuario`, `ambiente`, `ativo`, `chamado`, `ordem_servico`, `ordem_servico_item_estoque`, `item_estoque` e `notificacao`. O modelo está em [`docs/aura_db.sql.mwb`](docs/aura_db.sql.mwb).
+- O banco é criado pela migration `InitialCreate`, versionada em `AuriaAPI/Migrations`, com `dotnet ef database update`.
+- As senhas são gravadas com **hash BCrypt**, nunca em texto puro.
 
 ## Como executar a API
 
-Pré-requisitos: .NET 9 SDK e um servidor MySQL acessível.
+Pré-requisitos: **.NET 9 SDK**, **MySQL 8** rodando e a ferramenta do EF (`dotnet tool install --global dotnet-ef`).
 
 ```bash
 git clone https://github.com/FontesSabrina/ApiAuria.git
-cd ApiAuria
+cd ApiAuria/AuriaAPI
 dotnet restore
-dotnet ef database update
+# configure os segredos (seção anterior)
+dotnet ef database update      # cria o banco aura_db e as tabelas
 dotnet run
 ```
 
-A API sobe em `http://localhost:5131` (perfil `http` em
-`Properties/launchSettings.json`). O Swagger fica disponível em
-`http://localhost:5131/swagger`, com suporte ao botão **Authorize** para colar o token
-JWT (`Bearer <token>`).
+- A API sobe em `http://localhost:5131`.
+- O Swagger fica em **http://localhost:5131/swagger**. Use o botão **Authorize** para colar o token.
+- O arquivo [`AuriaAPI/AuriaAPI.http`](AuriaAPI/AuriaAPI.http) tem o **roteiro completo da demonstração**. Ele roda no VS Code (extensão REST Client) ou no Visual Studio.
 
 ## Como executar o aplicativo Flutter
 
-O app fica em [`../flutter_aura_2026`](../flutter_aura_2026) (README próprio lá). Resumo:
+Pré-requisitos: **Flutter SDK** e a **API rodando**.
 
 ```bash
-cd ../flutter_aura_2026
+cd ApiAuria/flutter_aura_2026
 flutter pub get
-flutter run -d windows   # ou -d chrome, se não tiver o Visual Studio instalado
+flutter run -d windows     # ou: flutter run -d chrome
 ```
 
-A `baseUrl` usada pelo app fica em `lib/core/network/api_config.dart` — por padrão
-`http://localhost:5131/api`, pensada para rodar como Windows Desktop na mesma máquina
-que a API. Ajuste esse arquivo se for rodar num emulador Android ou dispositivo físico.
+- O endereço da API fica em `flutter_aura_2026/lib/core/network/api_config.dart`. O padrão é `http://localhost:5131/api`.
+  - Num emulador Android, use `http://10.0.2.2:5131/api`.
+  - Num celular físico, use o IP do computador na rede.
+- Entre com o **admin inicial** (configurado em `AdminInicial`) e cadastre técnicos e solicitantes em **Cadastro de Usuários**.
+- Para rodar os testes do app: `flutter test`.
+
+### Dados de demonstração e logins de teste
+
+Ao rodar a API em **Development** (o padrão do `dotnet run`), o `DadosDemonstracaoSeeder` deixa o
+sistema pronto para a apresentação. Ele **só cria o que ainda não existe** (compara e-mail, nome do
+ambiente, patrimônio e nome do item), então não duplica nem altera o que você já cadastrou.
+
+| Perfil | E-mail | Senha |
+|---|---|---|
+| Admin | o configurado em `AdminInicial:Email` | a configurada em `AdminInicial:Senha` |
+| Técnico | `tecnico@auria.com` (Carlos Lima) | `Demo@2026` |
+| Técnico | `tecnico2@auria.com` (Paula Souza) | `Demo@2026` |
+| Solicitante | `solicitante@auria.com` (Ana Martins) | `Demo@2026` |
+| Solicitante | `solicitante2@auria.com` (Bruno Costa) | `Demo@2026` |
+
+Também são criados:
+
+- 7 ambientes, como Recepção, Sala 3 e Auditório;
+- 8 ativos (ar-condicionado, projetor, bebedouro...), alguns com estado ruim ou garantia vencida, para aparecerem nas **preventivas**;
+- 10 itens de estoque, 3 deles abaixo do mínimo, para o **alerta de reposição**;
+- 4 chamados abertos, criados só se o banco ainda não tiver nenhum chamado.
+
+Para desligar, use `"DadosDemonstracao": { "Ativar": false }` (ou `dotnet user-secrets set "DadosDemonstracao:Ativar" "false"`).
+
+### Acessibilidade
+
+O professor não pediu, mas o app foi pensado para ser usado por pessoas com deficiência, seguindo as
+diretrizes **WCAG 2.2** (nível AA). O botão **Acessibilidade** (ícone de pessoa) fica no cabeçalho de
+todas as telas e na tela de login. Ele abre um painel com:
+
+- **Tamanho do texto:** Normal, Grande, Maior ou Máximo. Multiplica o tamanho que a pessoa já usa no sistema, até 2×.
+- **Alto contraste:** paleta com texto preto ou branco, bordas escuras e cores de status mais fortes, nos temas claro e escuro.
+- **Fonte de leitura facilitada:** usa a *Atkinson Hyperlegible*, feita para baixa visão. Também ajuda na dislexia.
+- **Tema escuro.**
+- **Reduzir animações:** desliga transições e efeitos de movimento.
+
+As escolhas ficam salvas no aparelho. O app também segue as configurações do próprio sistema: fonte
+grande, texto em negrito, alto contraste e remover animações.
+
+Além do painel:
+
+- **Leitor de tela** (TalkBack, VoiceOver, NVDA):
+  - todo botão de ícone tem nome;
+  - campos de formulário são lidos junto com o rótulo;
+  - títulos são marcados como cabeçalho, para a navegação por títulos;
+  - avisos e erros são anunciados automaticamente;
+  - a troca de página é anunciada;
+  - gráficos e barras têm uma descrição em texto dos dados.
+- **Teclado:** dá para usar tudo com Tab, Shift+Tab, Enter e Esc (fecha painéis), e o foco aparece com um contorno bem visível.
+- **Cor nunca é a única informação:** status, prioridade e nível de estoque sempre têm texto junto da cor.
+- **Contraste:** textos com pelo menos 4,5:1 nas paletas normais e 7:1 no alto contraste.
+- **Toque:** áreas de toque de pelo menos 44 px.
+- **Web:** página em `lang="pt-BR"`, com a acessibilidade do Flutter ligada desde o início.
+
+A lista completa, com cada critério da WCAG, está em [`docs/ACESSIBILIDADE.md`](docs/ACESSIBILIDADE.md).
+
+## Autenticação JWT
+
+| Etapa | Onde acontece |
+|---|---|
+| **Cadastro** | `POST /api/auth/register` é público e cria um `Solicitante`. Usuários com outros perfis são criados por um Admin em `POST /api/usuarios`. |
+| **Validação das credenciais** | `AuthService.LoginAsync` busca o usuário pelo e-mail e compara a senha com o hash BCrypt. |
+| **Geração do token** | `JwtTokenService` assina com HMAC-SHA256. Claims: `sub` (id), `name`, `email`, `role` (perfil) e `jti`. Validade de 8h. |
+| **Retorno ao cliente** | A resposta do login traz `token` e `expiraEm`. O app guarda o token e o envia em `Authorization: Bearer <token>`. |
+| **Validação nas requisições** | O middleware JWT confere assinatura, emissor, público e expiração (`ClockSkew = 0`). Configuração em `Api/Extensions/AutenticacaoExtensions.cs`. |
+| **Restrição de acesso** | `[Authorize]` exige um token válido. `[Authorize(Roles = "Admin")]` e `"Tecnico,Admin"` restringem por perfil. Regras finas ficam nos services (ex.: só o técnico designado conclui a OS; o solicitante só vê os próprios chamados). |
+
+- Sem token, ou com token inválido ou expirado, a resposta é **401**. Com token válido mas perfil sem permissão, é **403**. As duas seguem o formato do ResultWrapper.
+- No app, um 401 encerra a sessão e leva de volta à tela de login.
+- **Endpoints públicos:** só `POST /api/auth/register` e `POST /api/auth/login`.
+
+## Estratégia de cache
+
+O cache usa **IMemoryCache** com a estratégia **cache-aside**: o service consulta o cache e, se o
+dado não estiver lá, busca no banco e guarda o resultado. A lógica fica em
+`Infra/Cache/MemoryCacheService.cs`, por trás da interface `ICacheService`. Ele é usado em duas
+funcionalidades reais:
+
+| Dado em cache | Endpoint | Expiração | Invalidado quando |
+|---|---|---|---|
+| Lista de ambientes | `GET /api/ambientes` | 5 min | Um ambiente é criado, alterado ou removido. |
+| Indicadores do BI | `GET /api/indicadores` | 2 min | Um chamado é aberto ou cancelado, uma OS é criada ou concluída, peças são consumidas ou um item de estoque é alterado. |
+
+**Como identificar cada situação.** Todo passo aparece no **console da API**:
+
+```
+[CACHE MISS] 'ambientes:lista' não está no cache — buscando na fonte original (banco de dados).
+[CACHE ARMAZENADO] 'ambientes:lista' guardado no cache por 5 minuto(s).
+[CACHE HIT] 'ambientes:lista' devolvido do cache, sem consultar o banco.
+[CACHE INVALIDADO] 'ambientes:lista' removido do cache porque os dados foram alterados.
+```
+
+Nos indicadores, o campo `geradoEm` da resposta também mostra o cache funcionando: ele não muda
+enquanto o resultado vem do cache.
+
+**Por que esses dois dados?**
+
+- A lista de ambientes muda pouco e é lida em várias telas.
+- Os indicadores exigem percorrer todas as ordens e chamados, o que é caro para calcular a cada acesso.
+- Dados que mudam a todo momento (como o saldo de estoque) não ficam em cache, para não mostrar valores desatualizados.
+
+## ResultWrapper (padronização das respostas)
+
+**Todas** as respostas seguem o formato de `Application/Common/Result.cs`, inclusive validação (400),
+login inválido (401), falta de permissão (403), registro não encontrado (404), conflito (409) e erro
+interno (500):
+
+```json
+{ "success": true, "message": "Ambiente criado com sucesso.", "data": { "id": 1, "identificacao": "Sala 101" }, "errors": [] }
+```
+
+```json
+{ "success": false, "message": "Dados inválidos.", "data": null,
+  "errors": ["O nome é obrigatório.", "Informe um e-mail válido."] }
+```
+
+Quem monta cada resposta:
+
+- **Sucesso:** os controllers (`ApiControllerBase`).
+- **Erros de regra:** os services lançam exceções e o `ExceptionHandlingMiddleware` as converte.
+- **Validação:** o `InvalidModelStateResponseFactory`.
+- **401/403:** os eventos do JWT.
 
 ## Principais endpoints
 
-| Método | Rota | Autenticação | Descrição |
+Todas as rotas começam com `/api`. Legenda: 🔓 público · 🔑 qualquer usuário logado · 👷 Técnico ou Admin · 👑 Admin.
+
+| Método | Rota | Acesso | Descrição |
 |---|---|---|---|
-| POST | `/api/auth/register` | Não | Cadastra um usuário (perfil `Solicitante`) e retorna token + id |
-| POST | `/api/auth/login` | Não | Autentica e retorna token JWT + id |
-| GET | `/api/auth/usuarios` | Sim | Lista usuários (id, nome, email, perfil — sem senha) |
-| PUT | `/api/auth/usuarios/{id}/perfil` | Admin | Altera o perfil de um usuário (`Solicitante`/`Tecnico`/`Admin`) |
-| GET | `/api/ambientes` | Sim | Lista ambientes (cacheado por 5 min) |
-| GET | `/api/ambientes/{id}` | Sim | Consulta um ambiente |
-| POST | `/api/ambientes` | Sim | Cria um ambiente |
-| PUT | `/api/ambientes/{id}` | Sim | Atualiza um ambiente |
-| DELETE | `/api/ambientes/{id}` | Sim | Remove um ambiente |
-| GET | `/api/ativos` | Sim | Lista ativos |
-| GET | `/api/ativos/{id}` | Sim | Consulta um ativo |
-| POST | `/api/ativos` | Sim | Cria um ativo (valida se o `AmbienteId` existe) |
-| PUT | `/api/ativos/{id}` | Sim | Atualiza um ativo |
-| DELETE | `/api/ativos/{id}` | Sim | Remove um ativo |
-| GET | `/api/chamados` | Sim | Lista chamados com detalhes (solicitante, técnico responsável, ativo, ambiente) |
-| GET | `/api/chamados/{id}` | Sim | Consulta um chamado |
-| POST | `/api/chamados` | Sim | Abre um chamado (solicitante = usuário autenticado) |
-| PUT | `/api/chamados/{id}/cancelar` | Sim | Cancela um chamado |
-| GET | `/api/itensestoque` | Sim | Lista itens de estoque |
-| POST | `/api/itensestoque` | Sim | Cria um item de estoque |
-| PUT | `/api/itensestoque/{id}` | Sim | Atualiza um item de estoque |
-| DELETE | `/api/itensestoque/{id}` | Sim | Remove um item de estoque |
-| GET | `/api/notificacoes` | Sim | Lista notificações |
-| POST | `/api/notificacoes` | Sim | Cria uma notificação |
-| PUT | `/api/notificacoes/{id}/lida` | Sim | Marca notificação como lida |
-| DELETE | `/api/notificacoes/{id}` | Sim | Remove uma notificação |
-| GET | `/api/ordemservico` | Sim | Lista ordens de serviço |
-| POST | `/api/ordemservico` | Tecnico, Admin | Abre uma ordem de serviço para um chamado (opcionalmente debitando itens de estoque), muda status para "Em Execucao" |
-| PUT | `/api/ordemservico/{id}/concluir` | Tecnico, Admin | Conclui a ordem de serviço e fecha o chamado (corpo opcional: `tempoGastoMinutos`, `parecerTecnico`, `custoMaoObra`, para preencher esses dados só na conclusão) |
+| POST | `/auth/register` | 🔓 | Cadastra um usuário (Solicitante) e retorna o token |
+| POST | `/auth/login` | 🔓 | Autentica e retorna o token JWT |
+| GET | `/usuarios?perfil=Tecnico` | 👑 | Lista usuários (filtro opcional por perfil) |
+| GET | `/usuarios/{id}` | 👑 | Consulta um usuário |
+| POST | `/usuarios` | 👑 | Cria usuário já com perfil |
+| PUT | `/usuarios/{id}` | 👑 | Atualiza nome, e-mail, perfil e (opcional) senha |
+| PUT | `/usuarios/{id}/perfil` | 👑 | Altera só o perfil |
+| DELETE | `/usuarios/{id}` | 👑 | Remove (bloqueado se tiver chamados/OS) |
+| GET | `/ambientes` | 🔑 | Lista ambientes **(cache)** |
+| GET | `/ambientes/{id}` | 🔑 | Consulta um ambiente |
+| POST / PUT / DELETE | `/ambientes` · `/ambientes/{id}` | 👑 | Cria / altera / remove (remoção bloqueada se houver ativos) |
+| GET | `/ativos?ambienteId=1` | 🔑 | Lista ativos (filtro opcional por ambiente) |
+| GET | `/ativos/{id}` | 🔑 | Consulta um ativo |
+| POST / PUT / DELETE | `/ativos` · `/ativos/{id}` | 👑 | Cria / altera / remove (remoção bloqueada se houver chamados) |
+| GET | `/chamados?status=Aberto` | 👷 | Lista todos os chamados |
+| GET | `/chamados/meus` | 🔑 | Chamados do usuário logado |
+| GET | `/chamados/{id}` | 🔑 | Consulta (o solicitante só vê os próprios) |
+| POST | `/chamados` | 🔑 | Abre chamado (notifica os admins) |
+| PUT | `/chamados/{id}/cancelar` | 🔑 | Cancela chamado "Aberto" (admin ou o próprio solicitante) |
+| GET | `/ordemservico` | 👷 | Lista ordens de serviço |
+| GET | `/ordemservico/minhas` | 👷 | Ordens designadas ao técnico logado |
+| GET | `/ordemservico/{id}` | 👷 | Consulta uma OS |
+| POST | `/ordemservico` | 👷 | Abre OS para um chamado "Aberto" e designa o técnico |
+| POST | `/ordemservico/{id}/itens` | 👷 | Registra peças consumidas (debita o estoque) |
+| PUT | `/ordemservico/{id}/concluir` | 👷 | Conclui a OS e o chamado (só o técnico designado ou um admin) |
+| GET | `/itensestoque` | 🔑 | Lista itens de estoque |
+| GET | `/itensestoque/criticos` | 🔑 | Itens abaixo do estoque mínimo |
+| GET | `/itensestoque/{id}` | 🔑 | Consulta um item |
+| POST / PUT / DELETE | `/itensestoque` · `/itensestoque/{id}` | 👑 | Cria / altera / remove (remoção bloqueada se já foi usado) |
+| GET | `/notificacoes` | 🔑 | Notificações do usuário logado |
+| POST | `/notificacoes` | 👑 | Envia um aviso manual a um usuário |
+| PUT | `/notificacoes/{id}/lida` | 🔑 | Marca como lida (só as próprias) |
+| DELETE | `/notificacoes/{id}` | 🔑 | Remove (só as próprias) |
+| GET | `/indicadores` | 👑 | Indicadores do painel de BI **(cache)** |
+| GET | `/planejamento/cronograma?data=2026-10-22` | 👑 | Ordens de serviço preventivas do dia |
+| GET | `/planejamento/alertas` | 👑 | Ativos que precisam de manutenção preventiva |
 
-## Exemplo de requisição e resposta
+## Exemplos de requisições e respostas
 
-**Requisição** — `POST /api/auth/login`
+**Login — `POST /api/auth/login`**
 
 ```json
-{
-  "email": "usuario@exemplo.com",
-  "senha": "minhasenha123"
-}
+{ "email": "admin@auria.com", "senha": "Admin@123" }
 ```
-
-**Resposta — sucesso (200)**
 
 ```json
 {
@@ -228,49 +417,80 @@ que a API. Ajuste esse arquivo se for rodar num emulador Android ou dispositivo 
   "data": {
     "id": 1,
     "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "nome": "Maria Silva",
-    "email": "usuario@exemplo.com",
-    "role": "Solicitante"
+    "expiraEm": "2026-10-22T20:00:00Z",
+    "nome": "Administrador",
+    "email": "admin@auria.com",
+    "role": "Admin"
   },
   "errors": []
 }
 ```
 
-**Resposta — falha (401)**
+**Login inválido — 401**
+
+```json
+{ "success": false, "message": "Credenciais inválidas.", "data": null, "errors": ["Credenciais inválidas."] }
+```
+
+**Endpoint protegido sem token — `GET /api/ambientes` sem o header — 401**
+
+```json
+{ "success": false, "message": "Token de autenticação não informado. Envie o header 'Authorization: Bearer <token>'.", "data": null, "errors": ["..."] }
+```
+
+**Perfil sem permissão — um Solicitante em `GET /api/indicadores` — 403**
+
+```json
+{ "success": false, "message": "Você não tem permissão para acessar este recurso com o seu perfil de usuário.", "data": null, "errors": ["..."] }
+```
+
+**Abrir OS com peças — `POST /api/ordemservico`** (Admin ou Técnico)
+
+```json
+{ "chamadoId": 1, "tecnicoId": 2, "tempoGastoMinutos": 0, "custoMaoObra": 0,
+  "itensUtilizados": [ { "itemEstoqueId": 3, "quantidadeUtilizada": 2 } ] }
+```
+
+Resposta **201** (resumida):
 
 ```json
 {
-  "success": false,
-  "message": "Credenciais inválidas.",
-  "data": null,
+  "success": true,
+  "message": "Ordem de serviço criada com sucesso.",
+  "data": {
+    "id": 5, "chamadoId": 1, "tecnicoId": 2, "tecnicoNome": "Carlos",
+    "custoMaoObra": 0, "custoPecas": 24.50, "custoTotal": 24.50,
+    "concluida": false, "statusChamado": "Em Execucao",
+    "ativoNome": "Luminária sala 101", "prioridade": "Alta",
+    "itensUtilizados": [ { "itemEstoqueId": 3, "itemNome": "Lâmpada LED", "quantidadeUtilizada": 2, "custoUnitario": 12.25, "subtotal": 24.50 } ]
+  },
   "errors": []
 }
 ```
 
-## Consumo de itens de estoque
-
-Ao abrir uma ordem de serviço (`POST /api/ordemservico`), é possível informar quais itens
-de estoque foram usados no campo opcional `itensUtilizados`:
+**Regra de negócio violada — concluir de novo uma OS já concluída — 400**
 
 ```json
-{
-  "chamadoId": 1,
-  "tecnicoId": 2,
-  "tempoGastoMinutos": 45,
-  "parecerTecnico": "Troca de lâmpada",
-  "custoMaoObra": 50.00,
-  "itensUtilizados": [
-    { "itemEstoqueId": 3, "quantidadeUtilizada": 2 }
-  ]
-}
+{ "success": false, "message": "Esta ordem de serviço já foi concluída.", "data": null, "errors": ["Esta ordem de serviço já foi concluída."] }
 ```
 
-Cada item é validado antes de qualquer gravação: precisa existir, a quantidade deve ser
-maior que zero, não pode haver `itemEstoqueId` duplicado na lista, e o estoque disponível
-precisa ser suficiente — caso contrário a API responde `400` sem criar a ordem de serviço
-nem debitar nada. Se a validação passa, o estoque (`ItemEstoque.QuantidadeEstoque`) é
-debitado e um registro é criado em `OrdemServicoItemEstoque` para cada item, na mesma
-operação de criação da ordem de serviço.
+**Excluir ambiente com ativos — 409**
 
+```json
+{ "success": false, "message": "Este ambiente possui ativos vinculados. Transfira ou remova os ativos antes de excluí-lo.", "data": null, "errors": ["..."] }
+```
 
+## Reproduzindo o projeto do zero (passo a passo)
 
+1. Instale o **.NET 9 SDK**, o **MySQL 8**, o **Flutter SDK** e rode `dotnet tool install --global dotnet-ef`.
+2. Clone o repositório: `git clone https://github.com/FontesSabrina/ApiAuria.git`.
+3. Em `AuriaAPI/`, configure a connection string, a chave JWT e o admin inicial, como na seção [Configuração](#configuração-banco-jwt-e-admin-inicial).
+4. Ainda em `AuriaAPI/`, rode `dotnet ef database update` e depois `dotnet run`. No console deve aparecer `Primeiro administrador criado`.
+5. Abra `http://localhost:5131/swagger`, faça login com o admin e clique em **Authorize**.
+6. Em `flutter_aura_2026/`, rode `flutter pub get` e depois `flutter run -d windows` (ou `-d chrome`).
+7. No app, entre como admin e siga o fluxo:
+   1. Cadastre um ambiente, um ativo, um item de estoque, um técnico e um solicitante.
+   2. Entre como solicitante e abra um chamado.
+   3. Entre como admin e aprove o chamado, designando o técnico.
+   4. Entre como técnico, registre o consumo de peças e conclua a OS.
+   5. Confira as notificações e o painel de indicadores.
