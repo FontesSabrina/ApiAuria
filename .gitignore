@@ -4,11 +4,24 @@ obj/
 *.user
 *.suo
 
+## Configuração local com segredos (connection string, chave JWT, senha do admin)
+**/appsettings.Development.json
+**/appsettings.*.local.json
+
 ## IDE
 .vs/
 .vscode/
 .idea/
+*.iml
 
 ## OS
 .DS_Store
 Thumbs.db
+
+## Flutter / Dart
+flutter_aura_2026/.dart_tool/
+flutter_aura_2026/build/
+flutter_aura_2026/.flutter-plugins
+flutter_aura_2026/.flutter-plugins-dependencies
+flutter_aura_2026/.pub-cache/
+flutter_aura_2026/.pub/
