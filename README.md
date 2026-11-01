@@ -14,6 +14,36 @@ JWT e pelo cache.
 └──────────────────┘                        └───────────────────────┘             └─────────┘
 ```
 
+## 🎬 Demonstração
+
+<div align="center">
+
+<img src="docs/demo/auria-demo.gif" width="800" alt="Demonstração do Auria: solicitante abre um chamado, admin aprova e técnico conclui a ordem de serviço">
+
+*Solicitante abre o chamado → admin aprova e designa o técnico → técnico registra as peças e conclui a OS.*
+
+</div>
+
+### ▶️ Fluxo completo: do chamado à ordem de serviço concluída
+
+<!-- ARRASTE AQUI o arquivo auria-fluxo-completo.mp4 (o GitHub transforma num player de vídeo) -->
+
+### ▶️ Painel do administrador: estoque, ativos, ambientes, usuários e indicadores
+
+<!-- ARRASTE AQUI o arquivo auria-painel-admin.mp4 -->
+
+> Os vídeos estão acelerados 2×.
+
+### 📸 Telas
+
+| Login | Abrir chamado (Solicitante) | Painel (Admin) |
+|:---:|:---:|:---:|
+| <img src="docs/demo/01-login.png" width="280" alt="Tela de login"> | <img src="docs/demo/02-abrir-chamado.png" width="280" alt="Abrir chamado"> | <img src="docs/demo/03-painel-admin.png" width="280" alt="Painel do administrador no tema claro"> |
+| **Chamados em quadro kanban (Admin)** | **Executar ordem de serviço (Técnico)** | **Estoque com alerta de reposição** |
+| <img src="docs/demo/04-aprovar-chamado.png" width="280" alt="Quadro de chamados"> | <img src="docs/demo/05-executar-ordem.png" width="280" alt="Execução da ordem de serviço"> | <img src="docs/demo/06-estoque.png" width="280" alt="Estoque"> |
+| **Indicadores** | **Preventivas** | **Acessibilidade** |
+| <img src="docs/demo/07-indicadores.png" width="280" alt="Indicadores"> | <img src="docs/demo/08-preventivas.png" width="280" alt="Preventivas"> | <img src="docs/demo/09-acessibilidade.png" width="280" alt="Painel de acessibilidade"> |
+
 ## Integrantes da equipe
 
 - Sabrina Caetano Fontes — sabrinacfontes@gmail.com
@@ -21,20 +51,21 @@ JWT e pelo cache.
 
 ## Sumário
 
-1. [Descrição do sistema](#descrição-do-sistema)
-2. [Tecnologias utilizadas](#tecnologias-utilizadas)
-3. [Estrutura do repositório e da arquitetura](#estrutura-do-repositório-e-da-arquitetura)
-4. [Configuração (banco, JWT e admin inicial)](#configuração-banco-jwt-e-admin-inicial)
-5. [Como executar a API](#como-executar-a-api)
-6. [Como executar o aplicativo Flutter](#como-executar-o-aplicativo-flutter)
+1. [Demonstração](#-demonstração)
+2. [Descrição do sistema](#descrição-do-sistema)
+3. [Tecnologias utilizadas](#tecnologias-utilizadas)
+4. [Estrutura do repositório e da arquitetura](#estrutura-do-repositório-e-da-arquitetura)
+5. [Configuração (banco, JWT e admin inicial)](#configuração-banco-jwt-e-admin-inicial)
+6. [Como executar a API](#como-executar-a-api)
+7. [Como executar o aplicativo Flutter](#como-executar-o-aplicativo-flutter)
    - [Dados de demonstração e logins de teste](#dados-de-demonstração-e-logins-de-teste)
    - [Acessibilidade](#acessibilidade)
-7. [Autenticação JWT](#autenticação-jwt)
-8. [Estratégia de cache](#estratégia-de-cache)
-9. [ResultWrapper (padronização das respostas)](#resultwrapper-padronização-das-respostas)
-10. [Principais endpoints](#principais-endpoints)
-11. [Exemplos de requisições e respostas](#exemplos-de-requisições-e-respostas)
-12. [Reproduzindo o projeto do zero (passo a passo)](#reproduzindo-o-projeto-do-zero-passo-a-passo)
+8. [Autenticação JWT](#autenticação-jwt)
+9. [Estratégia de cache](#estratégia-de-cache)
+10. [ResultWrapper (padronização das respostas)](#resultwrapper-padronização-das-respostas)
+11. [Principais endpoints](#principais-endpoints)
+12. [Exemplos de requisições e respostas](#exemplos-de-requisições-e-respostas)
+13. [Reproduzindo o projeto do zero (passo a passo)](#reproduzindo-o-projeto-do-zero-passo-a-passo)
 
 ---
 
